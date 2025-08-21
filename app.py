@@ -1,82 +1,65 @@
 import streamlit as st
 import pandas as pd
-import os
 
-FILE_NAME = "nguyen_phu_lieu.csv"
+# --- Khởi tạo dữ liệu ban đầu ---
+if "data" not in st.session_state:
+    st.session_state.data = pd.DataFrame({
+        "Mã hàng": ["A01", "A02", "A03"],
+        "Tên hàng": ["Áo phao", "Quần jean", "Áo sơ mi"],
+        "Số lượng": [100, 200, 150]
+    })
 
-# Khởi tạo file nếu chưa có
-if not os.path.exists(FILE_NAME):
-    df = pd.DataFrame(columns=["Mã hàng", "Tên hàng", "Đơn vị", "Số lượng"])
-    df.to_csv(FILE_NAME, index=False)
+st.title("📦 Quản lý mã hàng (CRUD + Tìm kiếm)")
 
-def load_data():
-    return pd.read_csv(FILE_NAME)
+# --- SEARCH / FILTER ---
+st.subheader("🔍 Tìm kiếm / Lọc")
+keyword = st.text_input("Nhập mã hàng hoặc tên hàng cần tìm")
 
-def save_data(df):
-    df.to_csv(FILE_NAME, index=False)
+if keyword:
+    df_view = st.session_state.data[
+        st.session_state.data.apply(lambda row: keyword.lower() in str(row.values).lower(), axis=1)
+    ]
+else:
+    df_view = st.session_state.data
 
-# =================== GIAO DIỆN =====================
-st.set_page_config(page_title="Quản lý Nguyên Phụ Liệu", layout="wide")
+# --- READ: Hiển thị bảng ---
+st.subheader("📋 Danh sách mã hàng")
+st.dataframe(df_view, use_container_width=True)
 
-st.title("📦 Quản lý Nguyên Phụ Liệu trong Kho")
-
-menu = st.sidebar.radio("Chọn chức năng", ["Xem tồn kho", "Nhập kho", "Xuất kho", "Tìm kiếm"])
-
-# Xem tồn kho
-if menu == "Xem tồn kho":
-    st.subheader("📊 Tồn kho hiện tại")
-    df = load_data()
-    st.dataframe(df, use_container_width=True)
-
-# Nhập kho
-elif menu == "Nhập kho":
-    st.subheader("➕ Nhập kho nguyên phụ liệu")
-    with st.form("form_nhap"):
-        ma = st.text_input("Mã hàng")
-        ten = st.text_input("Tên hàng")
-        dvi = st.text_input("Đơn vị")
-        sl = st.number_input("Số lượng", min_value=1, step=1)
-        submit = st.form_submit_button("Thêm / Cập nhật")
-
-        if submit:
-            df = load_data()
-            if ma in df["Mã hàng"].values:
-                df.loc[df["Mã hàng"] == ma, "Số lượng"] += sl
-            else:
-                new_row = {"Mã hàng": ma, "Tên hàng": ten, "Đơn vị": dvi, "Số lượng": sl}
-                df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-            save_data(df)
-            st.success(f"✅ Đã thêm/cập nhật {ten} ({ma})")
-
-# Xuất kho
-elif menu == "Xuất kho":
-    st.subheader("📦 Xuất kho nguyên phụ liệu")
-    with st.form("form_xuat"):
-        ma = st.text_input("Mã hàng cần xuất")
-        sl = st.number_input("Số lượng xuất", min_value=1, step=1)
-        submit = st.form_submit_button("Xuất kho")
-
-        if submit:
-            df = load_data()
-            if ma in df["Mã hàng"].values:
-                so_luong = df.loc[df["Mã hàng"] == ma, "Số lượng"].values[0]
-                if so_luong >= sl:
-                    df.loc[df["Mã hàng"] == ma, "Số lượng"] -= sl
-                    save_data(df)
-                    st.success(f"✅ Đã xuất {sl} đơn vị cho mã {ma}")
-                else:
-                    st.error("❌ Không đủ số lượng trong kho!")
-            else:
-                st.error("❌ Không tìm thấy mã hàng!")
-
-# Tìm kiếm
-elif menu == "Tìm kiếm":
-    st.subheader("🔍 Tìm kiếm nguyên phụ liệu")
-    keyword = st.text_input("Nhập tên hàng cần tìm")
-    if keyword:
-        df = load_data()
-        kq = df[df["Tên hàng"].str.contains(keyword, case=False, na=False)]
-        if not kq.empty:
-            st.dataframe(kq, use_container_width=True)
+# --- CREATE: Thêm mã hàng mới ---
+st.subheader("➕ Thêm mã hàng mới")
+with st.form("add_form", clear_on_submit=True):
+    new_code = st.text_input("Mã hàng")
+    new_name = st.text_input("Tên hàng")
+    new_qty = st.number_input("Số lượng", min_value=0, value=0)
+    submitted = st.form_submit_button("Thêm")
+    if submitted:
+        if new_code in st.session_state.data["Mã hàng"].values:
+            st.warning("⚠️ Mã hàng đã tồn tại!")
         else:
-            st.warning("⚠️ Không tìm thấy kết quả")
+            st.session_state.data.loc[len(st.session_state.data)] = [new_code, new_name, new_qty]
+            st.success(f"✅ Đã thêm {new_code} - {new_name}")
+
+# --- UPDATE: Sửa mã hàng ---
+st.subheader("✏️ Sửa mã hàng")
+if len(st.session_state.data) > 0:
+    selected = st.selectbox("Chọn mã hàng cần sửa", st.session_state.data["Mã hàng"])
+    idx = st.session_state.data.index[st.session_state.data["Mã hàng"] == selected][0]
+
+    edit_code = st.text_input("Mã hàng mới", value=st.session_state.data.at[idx, "Mã hàng"])
+    edit_name = st.text_input("Tên hàng mới", value=st.session_state.data.at[idx, "Tên hàng"])
+    edit_qty = st.number_input("Số lượng mới", min_value=0, value=int(st.session_state.data.at[idx, "Số lượng"]))
+
+    if st.button("Cập nhật"):
+        st.session_state.data.at[idx, "Mã hàng"] = edit_code
+        st.session_state.data.at[idx, "Tên hàng"] = edit_name
+        st.session_state.data.at[idx, "Số lượng"] = edit_qty
+        st.success(f"✅ Đã cập nhật {selected} thành {edit_code}")
+
+# --- DELETE: Xóa mã hàng ---
+st.subheader("🗑️ Xóa mã hàng")
+if len(st.session_state.data) > 0:
+    del_selected = st.selectbox("Chọn mã hàng cần xóa", st.session_state.data["Mã hàng"], key="delete_select")
+    if st.button("Xóa"):
+        st.session_state.data = st.session_state.data[st.session_state.data["Mã hàng"] != del_selected].reset_index(drop=True)
+        st.success(f"🗑️ Đã xóa {del_selected}")
