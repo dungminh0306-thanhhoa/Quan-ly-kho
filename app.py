@@ -1,127 +1,125 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
 
-# --- Khởi tạo dữ liệu ban đầu ---
+# Khởi tạo dữ liệu
 if "data" not in st.session_state:
-    st.session_state.data = pd.DataFrame({
-        "Mã hàng": ["A01", "A02", "A03"],
-        "Tên hàng": ["Áo phao", "Quần jean", "Áo sơ mi"],
-        "Tồn kho": [100, 200, 150]
-    })
+    st.session_state.data = pd.DataFrame(columns=["Mã hàng", "Tên hàng", "Tồn kho"])
 
-# Bảng lịch sử giao dịch
-if "history" not in st.session_state:
-    st.session_state.history = pd.DataFrame(columns=["Thời gian", "Mã hàng", "Giao dịch", "Số lượng", "Tồn sau"])
+if "npl" not in st.session_state:
+    st.session_state.npl = {}  # dict: {ma_hang: [ {Tên NPL, Đơn vị, Số lượng}, ... ] }
 
-st.title("📦 Quản lý mã hàng (CRUD + Tìm kiếm + Tồn kho + Nhật ký)")
+st.title("📦 Quản lý Mã hàng & Nguyên phụ liệu")
 
-# --- SEARCH / FILTER cho bảng mã hàng ---
-st.subheader("🔍 Tìm kiếm / Lọc danh sách mã hàng")
-keyword = st.text_input("Nhập mã hàng hoặc tên hàng cần tìm")
+menu = st.sidebar.radio("Chọn chức năng", ["Thêm", "Sửa", "Xóa", "Danh sách", "Nguyên phụ liệu"])
 
-if keyword:
-    df_view = st.session_state.data[
-        st.session_state.data.apply(lambda row: keyword.lower() in str(row.values).lower(), axis=1)
-    ]
-else:
-    df_view = st.session_state.data
+# --- THÊM ---
+if menu == "Thêm":
+    st.subheader("➕ Thêm mã hàng")
+    ma = st.text_input("Mã hàng")
+    ten = st.text_input("Tên hàng")
+    ton = st.number_input("Tồn kho", min_value=0, value=0, step=1)
 
-# --- READ: Hiển thị bảng danh sách mã hàng ---
-st.subheader("📋 Danh sách mã hàng & tồn kho")
-st.dataframe(df_view, use_container_width=True)
-
-# --- CREATE: Thêm mã hàng mới ---
-st.subheader("➕ Thêm mã hàng mới")
-with st.form("add_form", clear_on_submit=True):
-    new_code = st.text_input("Mã hàng")
-    new_name = st.text_input("Tên hàng")
-    new_qty = st.number_input("Tồn kho ban đầu", min_value=0, value=0)
-    submitted = st.form_submit_button("Thêm")
-    if submitted:
-        if new_code in st.session_state.data["Mã hàng"].values:
-            st.warning("⚠️ Mã hàng đã tồn tại!")
+    if st.button("Lưu"):
+        if ma in st.session_state.data["Mã hàng"].values:
+            st.error("⚠️ Mã hàng đã tồn tại!")
         else:
-            st.session_state.data.loc[len(st.session_state.data)] = [new_code, new_name, new_qty]
-            # Ghi lịch sử nhập ban đầu
-            st.session_state.history.loc[len(st.session_state.history)] = [
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S"), new_code, "Nhập (ban đầu)", new_qty, new_qty
-            ]
-            st.success(f"✅ Đã thêm {new_code} - {new_name}")
+            new_row = pd.DataFrame([[ma, ten, ton]], columns=st.session_state.data.columns)
+            st.session_state.data = pd.concat([st.session_state.data, new_row], ignore_index=True)
+            st.session_state.npl[ma] = []  # khởi tạo list NPL rỗng cho mã hàng
+            st.success("✅ Đã thêm mã hàng mới")
 
-# --- UPDATE: Sửa mã hàng ---
-st.subheader("✏️ Sửa mã hàng")
-if len(st.session_state.data) > 0:
-    selected = st.selectbox("Chọn mã hàng cần sửa", st.session_state.data["Mã hàng"])
-    idx = st.session_state.data.index[st.session_state.data["Mã hàng"] == selected][0]
+# --- SỬA ---
+elif menu == "Sửa":
+    st.subheader("✏️ Sửa mã hàng")
+    if len(st.session_state.data) == 0:
+        st.warning("⚠️ Chưa có mã hàng nào")
+    else:
+        ma = st.selectbox("Chọn mã hàng", st.session_state.data["Mã hàng"])
+        row = st.session_state.data[st.session_state.data["Mã hàng"] == ma].iloc[0]
 
-    edit_code = st.text_input("Mã hàng mới", value=st.session_state.data.at[idx, "Mã hàng"])
-    edit_name = st.text_input("Tên hàng mới", value=st.session_state.data.at[idx, "Tên hàng"])
-    edit_qty = st.number_input("Số lượng tồn mới", min_value=0, value=int(st.session_state.data.at[idx, "Tồn kho"]))
+        ten = st.text_input("Tên hàng", value=row["Tên hàng"])
+        ton = st.number_input("Tồn kho", min_value=0, value=int(row["Tồn kho"]), step=1)
 
-    if st.button("Cập nhật"):
-        old_qty = st.session_state.data.at[idx, "Tồn kho"]
-        st.session_state.data.at[idx, "Mã hàng"] = edit_code
-        st.session_state.data.at[idx, "Tên hàng"] = edit_name
-        st.session_state.data.at[idx, "Tồn kho"] = edit_qty
+        if st.button("Cập nhật"):
+            st.session_state.data.loc[st.session_state.data["Mã hàng"] == ma, ["Tên hàng", "Tồn kho"]] = [ten, ton]
+            st.success("✅ Đã cập nhật")
 
-        # Ghi lịch sử chỉnh sửa tồn kho
-        diff = edit_qty - old_qty
-        if diff != 0:
-            loai = "Nhập (cập nhật)" if diff > 0 else "Xuất (cập nhật)"
-            st.session_state.history.loc[len(st.session_state.history)] = [
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S"), edit_code, loai, abs(diff), edit_qty
-            ]
+# --- XÓA ---
+elif menu == "Xóa":
+    st.subheader("🗑️ Xóa mã hàng")
+    if len(st.session_state.data) == 0:
+        st.warning("⚠️ Chưa có mã hàng nào")
+    else:
+        ma = st.selectbox("Chọn mã hàng", st.session_state.data["Mã hàng"])
 
-        st.success(f"✅ Đã cập nhật {selected} thành {edit_code}")
+        if st.button("Xóa"):
+            st.session_state.data = st.session_state.data[st.session_state.data["Mã hàng"] != ma]
+            if ma in st.session_state.npl:
+                del st.session_state.npl[ma]  # xóa luôn nguyên phụ liệu liên quan
+            st.success(f"✅ Đã xóa mã hàng {ma}")
 
-# --- DELETE: Xóa mã hàng ---
-st.subheader("🗑️ Xóa mã hàng")
-if len(st.session_state.data) > 0:
-    del_selected = st.selectbox("Chọn mã hàng cần xóa", st.session_state.data["Mã hàng"], key="delete_select")
-    if st.button("Xóa"):
-        st.session_state.data = st.session_state.data[st.session_state.data["Mã hàng"] != del_selected].reset_index(drop=True)
-        st.success(f"🗑️ Đã xóa {del_selected}")
+# --- DANH SÁCH ---
+elif menu == "Danh sách":
+    st.subheader("📋 Danh sách mã hàng & tồn kho (toàn bộ)")
+    st.dataframe(st.session_state.data, use_container_width=True)
 
-# --- STOCK MANAGEMENT: Nhập / Xuất kho ---
-st.subheader("📊 Quản lý tồn kho")
-if len(st.session_state.data) > 0:
-    stock_selected = st.selectbox("Chọn mã hàng để nhập/xuất kho", st.session_state.data["Mã hàng"], key="stock_select")
-    stock_idx = st.session_state.data.index[st.session_state.data["Mã hàng"] == stock_selected][0]
+    st.subheader("🔍 Kết quả tìm kiếm")
+    keyword = st.text_input("Nhập mã hàng hoặc tên hàng cần tìm")
 
-    col1, col2 = st.columns(2)
+    if keyword:
+        df_view = st.session_state.data[
+            st.session_state.data.apply(lambda row: keyword.lower() in str(row.values).lower(), axis=1)
+        ]
+        st.dataframe(df_view, use_container_width=True)
+    else:
+        st.info("Nhập từ khóa để tìm kiếm (mã hàng hoặc tên hàng)")
 
-    with col1:
-        nhap_sl = st.number_input("Số lượng nhập kho", min_value=0, value=0, key="nhap")
-        if st.button("Nhập kho"):
-            st.session_state.data.at[stock_idx, "Tồn kho"] += nhap_sl
-            ton_moi = st.session_state.data.at[stock_idx, "Tồn kho"]
+# --- NGUYÊN PHỤ LIỆU ---
+elif menu == "Nguyên phụ liệu":
+    st.subheader("⚙️ Quản lý nguyên phụ liệu cho từng mã hàng")
+    if len(st.session_state.data) == 0:
+        st.warning("⚠️ Chưa có mã hàng nào, hãy thêm trước!")
+    else:
+        ma = st.selectbox("Chọn mã hàng", st.session_state.data["Mã hàng"])
 
-            # Ghi lịch sử
-            st.session_state.history.loc[len(st.session_state.history)] = [
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S"), stock_selected, "Nhập", nhap_sl, ton_moi
-            ]
-            st.success(f"✅ Đã nhập {nhap_sl} vào {stock_selected}")
+        st.write(f"### 📦 Nguyên phụ liệu cho mã hàng **{ma}**")
+        npl_list = st.session_state.npl.get(ma, [])
 
-    with col2:
-        xuat_sl = st.number_input("Số lượng xuất kho", min_value=0, value=0, key="xuat")
-        if st.button("Xuất kho"):
-            if st.session_state.data.at[stock_idx, "Tồn kho"] >= xuat_sl:
-                st.session_state.data.at[stock_idx, "Tồn kho"] -= xuat_sl
-                ton_moi = st.session_state.data.at[stock_idx, "Tồn kho"]
+        # Hiển thị danh sách NPL
+        if len(npl_list) > 0:
+            for i, npl in enumerate(npl_list):
+                with st.expander(f"🔹 {npl['Tên NPL']} ({npl['Số lượng']} {npl['Đơn vị']})"):
+                    ten_edit = st.text_input("Tên NPL", value=npl["Tên NPL"], key=f"ten_{ma}_{i}")
+                    donvi_edit = st.text_input("Đơn vị", value=npl["Đơn vị"], key=f"dv_{ma}_{i}")
+                    soluong_edit = st.number_input("Số lượng", min_value=0, step=1,
+                                                   value=int(npl["Số lượng"]), key=f"sl_{ma}_{i}")
 
-                # Ghi lịch sử
-                st.session_state.history.loc[len(st.session_state.history)] = [
-                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"), stock_selected, "Xuất", xuat_sl, ton_moi
-                ]
-                st.success(f"✅ Đã xuất {xuat_sl} từ {stock_selected}")
-            else:
-                st.error("⚠️ Không đủ tồn kho để xuất!")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("💾 Lưu thay đổi", key=f"save_{ma}_{i}"):
+                            st.session_state.npl[ma][i] = {
+                                "Tên NPL": ten_edit,
+                                "Đơn vị": donvi_edit,
+                                "Số lượng": soluong_edit
+                            }
+                            st.success("✅ Đã cập nhật NPL")
 
-# --- HIỂN THỊ LỊCH SỬ GIAO DỊCH ---
-st.subheader("📑 Nhật ký giao dịch tồn kho (tất cả mã hàng)")
-st.dataframe(st.session_state.history, use_container_width=True)
+                    with col2:
+                        if st.button("🗑️ Xóa", key=f"delete_{ma}_{i}"):
+                            st.session_state.npl[ma].pop(i)
+                            st.success("✅ Đã xóa NPL")
+                            st.experimental_rerun()
+        else:
+            st.info("❌ Chưa có nguyên phụ liệu nào cho mã hàng này")
 
+        st.write("### ➕ Thêm nguyên phụ liệu")
+        ten_npl = st.text_input("Tên nguyên phụ liệu")
+        donvi = st.text_input("Đơn vị tính (m, cái, cuộn...)")
+        soluong = st.number_input("Số lượng", min_value=0, step=1)
 
+        if st.button("Thêm NPL"):
+            new_npl = {"Tên NPL": ten_npl, "Đơn vị": donvi, "Số lượng": soluong}
+            st.session_state.npl[ma].append(new_npl)
+            st.success("✅ Đã thêm nguyên phụ liệu mới")
 
 
