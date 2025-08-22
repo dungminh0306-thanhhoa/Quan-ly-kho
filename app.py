@@ -2,105 +2,113 @@ import streamlit as st
 import pandas as pd
 import os
 
-FILE_PATH = "data.csv"
+DATA_FILE = "data.csv"
 
-# Khởi tạo file CSV nếu chưa có
-if not os.path.exists(FILE_PATH):
+# Khởi tạo file nếu chưa có
+if not os.path.exists(DATA_FILE):
     df_init = pd.DataFrame(columns=["Mã hàng", "Màu sắc", "Số lượng", "Nguyên liệu"])
-    df_init.to_csv(FILE_PATH, index=False)
+    df_init.to_csv(DATA_FILE, index=False)
 
 # Load dữ liệu
-df = pd.read_csv(FILE_PATH)
+def load_data():
+    return pd.read_csv(DATA_FILE)
 
-st.set_page_config(page_title="Quản lý mã hàng", layout="wide")
-st.title("👕 Quản lý mã hàng & nguyên phụ liệu")
+# Lưu dữ liệu
+def save_data(df):
+    df.to_csv(DATA_FILE, index=False)
 
-# Thanh menu lựa chọn
-menu = st.sidebar.radio(
-    "Chọn chức năng:",
-    ["📋 Xem danh sách", "➕ Thêm mã hàng", "✏️ Chỉnh sửa mã hàng", "🗑️ Xóa mã hàng", "📦 Xuất dữ liệu"]
-)
+# Menu
+st.sidebar.title("📋 Menu")
+menu = st.sidebar.radio("Chọn chức năng:", [
+    "Xem danh sách mã hàng",
+    "Thêm mã hàng mới",
+    "Chỉnh sửa mã hàng",
+    "Xóa mã hàng"
+])
 
-# ============= 1. XEM DANH SÁCH ==================
-if menu == "📋 Xem danh sách":
-    st.subheader("📋 Danh sách mã hàng hiện tại")
-    search = st.text_input("🔍 Tìm kiếm theo mã hàng hoặc màu sắc:")
-    if search:
-        df_show = df[df.apply(lambda row: search.lower() in row.astype(str).str.lower().to_list(), axis=1)]
+# ---------------------------
+# Xem danh sách mã hàng
+# ---------------------------
+if menu == "Xem danh sách mã hàng":
+    st.title("📑 Danh sách mã hàng")
+    df = load_data()
+    if df.empty:
+        st.info("Chưa có dữ liệu.")
     else:
-        df_show = df
-    st.dataframe(df_show, use_container_width=True)
+        st.dataframe(df)
 
-# ============= 2. THÊM MÃ HÀNG ==================
-elif menu == "➕ Thêm mã hàng":
-    st.subheader("➕ Thêm mã hàng mới")
+# ---------------------------
+# Thêm mã hàng mới
+# ---------------------------
+elif menu == "Thêm mã hàng mới":
+    st.title("➕ Thêm mã hàng mới")
+    df = load_data()
 
-    if "new_rows" not in st.session_state:
-        st.session_state["new_rows"] = 5
+    ma_hang = st.text_input("Nhập mã hàng mới:")
 
-    # Tạo bảng nhập liệu
-    new_data = pd.DataFrame({
-        "Mã hàng": ["" for _ in range(st.session_state["new_rows"])],
-        "Màu sắc": ["" for _ in range(st.session_state["new_rows"])],
-        "Số lượng": [0 for _ in range(st.session_state["new_rows"])],
-        "Nguyên liệu": ["" for _ in range(st.session_state["new_rows"])]
-    })
+    if ma_hang:
+        so_dong = st.number_input("Chọn số dòng (số màu):", min_value=1, step=1, value=1)
 
-    edited_data = st.data_editor(new_data, num_rows="dynamic", use_container_width=True)
+        # Tạo bảng nhập dữ liệu
+        new_data = []
+        st.write("👉 Nhập thông tin chi tiết:")
+        for i in range(so_dong):
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                mau = st.text_input(f"Màu sắc dòng {i+1}", key=f"mau_{i}")
+            with col2:
+                so_luong = st.number_input(f"Số lượng dòng {i+1}", min_value=0, step=1, key=f"soluong_{i}")
+            with col3:
+                nguyen_lieu = st.text_input(f"Nguyên liệu dòng {i+1}", key=f"nl_{i}")
+            new_data.append([ma_hang, mau, so_luong, nguyen_lieu])
 
-    if st.button("💾 Lưu dữ liệu"):
-        updated_rows = []
+        if st.button("💾 Lưu mã hàng"):
+            # Nếu mã hàng đã tồn tại, copy nguyên liệu
+            if ma_hang in df["Mã hàng"].values:
+                st.warning("Mã hàng đã tồn tại! Sẽ dùng nguyên liệu từ mã hàng trước.")
+                old_df = df[df["Mã hàng"] == ma_hang]
+                for row in new_data:
+                    row[3] = old_df.iloc[0]["Nguyên liệu"]
+            new_df = pd.DataFrame(new_data, columns=["Mã hàng", "Màu sắc", "Số lượng", "Nguyên liệu"])
+            df = pd.concat([df, new_df], ignore_index=True)
+            save_data(df)
+            st.success(f"Đã thêm mã hàng {ma_hang} thành công!")
 
-        for _, row in edited_data.iterrows():
-            if row["Mã hàng"] == "" or row["Màu sắc"] == "":
-                continue
+# ---------------------------
+# Chỉnh sửa mã hàng
+# ---------------------------
+elif menu == "Chỉnh sửa mã hàng":
+    st.title("✏️ Chỉnh sửa mã hàng")
+    df = load_data()
+    if df.empty:
+        st.info("Chưa có dữ liệu.")
+    else:
+        ma_hang_list = df["Mã hàng"].unique().tolist()
+        ma_hang = st.selectbox("Chọn mã hàng cần sửa:", ma_hang_list)
+        df_edit = df[df["Mã hàng"] == ma_hang].copy()
+        st.dataframe(df_edit)
 
-            ma_hang = row["Mã hàng"]
-
-            # Nếu mã hàng đã có, lấy nguyên phụ liệu cũ
-            if ma_hang in df["Mã hàng"].values and row["Nguyên liệu"] == "":
-                nguyen_lieu_cu = df[df["Mã hàng"] == ma_hang]["Nguyên liệu"].tolist()
-                if nguyen_lieu_cu:
-                    row["Nguyên liệu"] = nguyen_lieu_cu[len(updated_rows) % len(nguyen_lieu_cu)]
-
-            updated_rows.append(row)
-
-        if updated_rows:
-            df = pd.concat([df, pd.DataFrame(updated_rows)], ignore_index=True)
-            df.to_csv(FILE_PATH, index=False)
-            st.success("✅ Đã thêm thành công!")
-
-# ============= 3. CHỈNH SỬA MÃ HÀNG ==================
-elif menu == "✏️ Chỉnh sửa mã hàng":
-    st.subheader("✏️ Chỉnh sửa mã hàng")
-
-    ma_list = df["Mã hàng"].unique().tolist()
-    if ma_list:
-        ma_chon = st.selectbox("Chọn mã hàng cần chỉnh sửa:", ma_list)
-        df_edit = df[df["Mã hàng"] == ma_chon].copy()
-        edited = st.data_editor(df_edit, use_container_width=True)
+        edited_df = st.data_editor(df_edit, num_rows="dynamic")
 
         if st.button("💾 Lưu chỉnh sửa"):
-            df = df[df["Mã hàng"] != ma_chon]
-            df = pd.concat([df, edited], ignore_index=True)
-            df.to_csv(FILE_PATH, index=False)
-            st.success("✅ Đã lưu chỉnh sửa!")
+            df = df[df["Mã hàng"] != ma_hang]
+            df = pd.concat([df, edited_df], ignore_index=True)
+            save_data(df)
+            st.success("Đã lưu chỉnh sửa.")
 
-# ============= 4. XÓA MÃ HÀNG ==================
-elif menu == "🗑️ Xóa mã hàng":
-    st.subheader("🗑️ Xóa mã hàng")
+# ---------------------------
+# Xóa mã hàng
+# ---------------------------
+elif menu == "Xóa mã hàng":
+    st.title("🗑️ Xóa mã hàng")
+    df = load_data()
+    if df.empty:
+        st.info("Chưa có dữ liệu.")
+    else:
+        ma_hang_list = df["Mã hàng"].unique().tolist()
+        ma_hang = st.selectbox("Chọn mã hàng cần xóa:", ma_hang_list)
 
-    ma_list = df["Mã hàng"].unique().tolist()
-    if ma_list:
-        ma_chon = st.selectbox("Chọn mã hàng cần xóa:", ma_list)
-        if st.button("❌ Xóa toàn bộ mã hàng này"):
-            df = df[df["Mã hàng"] != ma_chon]
-            df.to_csv(FILE_PATH, index=False)
-            st.success(f"✅ Đã xóa mã hàng {ma_chon}")
-
-# ============= 5. XUẤT FILE ==================
-elif menu == "📦 Xuất dữ liệu":
-    st.subheader("📦 Xuất dữ liệu")
-
-    csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button("⬇️ Tải về CSV", data=csv, file_name="ma_hang.csv", mime="text/csv")
+        if st.button("❌ Xóa"):
+            df = df[df["Mã hàng"] != ma_hang]
+            save_data(df)
+            st.success(f"Đã xóa mã hàng {ma_hang}")
