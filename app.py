@@ -1,19 +1,19 @@
 import streamlit as st
 import pandas as pd
 
-# File lưu dữ liệu
-data_file = "data.xlsx"
+# File lưu dữ liệu (đổi sang CSV để không cần openpyxl)
+data_file = "data.csv"
 
 # Hàm load dữ liệu
 def load_data():
     try:
-        return pd.read_excel(data_file)
+        return pd.read_csv(data_file)
     except:
         return pd.DataFrame(columns=["Mã hàng", "Nguyên phụ liệu", "Màu sắc", "Số lượng"])
 
 # Hàm lưu dữ liệu
 def save_data(df):
-    df.to_excel(data_file, index=False)
+    df.to_csv(data_file, index=False)
 
 # Giao diện chính
 def main():
