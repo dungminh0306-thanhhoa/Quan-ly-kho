@@ -12,19 +12,27 @@ if not os.path.exists(FILE_PATH):
 # Load dữ liệu
 df = pd.read_csv(FILE_PATH)
 
-st.title("Quản lý mã hàng & màu sắc")
+st.title("📦 Quản lý mã hàng & màu sắc")
 
-# Hiển thị dữ liệu hiện có
+# ------------------------
+# 1. XEM DANH SÁCH
+# ------------------------
 st.subheader("📋 Danh sách hiện tại")
-st.dataframe(df)
+search = st.text_input("🔍 Tìm kiếm theo mã hàng hoặc nguyên liệu")
+if search:
+    df_filtered = df[df.apply(lambda row: search.lower() in row.astype(str).str.lower().to_string(), axis=1)]
+else:
+    df_filtered = df
+st.dataframe(df_filtered, use_container_width=True)
 
+# ------------------------
+# 2. THÊM MÃ HÀNG
+# ------------------------
 st.subheader("➕ Thêm mã hàng mới")
 
-# Số dòng mặc định nhập liệu
 if "new_rows" not in st.session_state:
     st.session_state["new_rows"] = 5
 
-# Tạo bảng nhập liệu rỗng
 new_data = pd.DataFrame(
     {
         "Mã hàng": ["" for _ in range(st.session_state["new_rows"])],
@@ -36,32 +44,57 @@ new_data = pd.DataFrame(
 
 edited_data = st.data_editor(new_data, num_rows="dynamic", use_container_width=True)
 
-# Nút thêm dòng
 if st.button("➕ Thêm dòng trống"):
     st.session_state["new_rows"] += 1
     st.experimental_rerun()
 
-# Xử lý lưu
 if st.button("💾 Lưu mã hàng"):
     updated_rows = []
-
     for _, row in edited_data.iterrows():
         if row["Mã hàng"] == "" or row["Màu sắc"] == "":
-            continue  # bỏ qua dòng trống
-
+            continue
         ma_hang = row["Mã hàng"]
 
-        # Nếu mã hàng đã có, lấy nguyên phụ liệu cũ
-        if ma_hang in df["Mã hàng"].values:
+        # Nếu mã hàng đã có thì lấy nguyên liệu cũ
+        if ma_hang in df["Mã hàng"].values and row["Nguyên liệu"] == "":
             nguyen_lieu_cu = df[df["Mã hàng"] == ma_hang]["Nguyên liệu"].tolist()
-            # Nếu cột "Nguyên liệu" chưa nhập thì tự điền từ dữ liệu cũ (theo thứ tự vòng lặp)
-            if row["Nguyên liệu"] == "":
-                row["Nguyên liệu"] = nguyen_lieu_cu[len(updated_rows) % len(nguyen_lieu_cu)]
-        
+            row["Nguyên liệu"] = nguyen_lieu_cu[len(updated_rows) % len(nguyen_lieu_cu)]
+
         updated_rows.append(row)
 
     if updated_rows:
         df = pd.concat([df, pd.DataFrame(updated_rows)], ignore_index=True)
         df.to_csv(FILE_PATH, index=False)
-        st.success("Đã lưu thành công!")
-        st.dataframe(df)
+        st.success("✅ Đã lưu thành công!")
+        st.dataframe(df, use_container_width=True)
+
+# ------------------------
+# 3. CHỈNH SỬA MÃ HÀNG
+# ------------------------
+st.subheader("✏️ Chỉnh sửa mã hàng")
+
+if not df.empty:
+    ma_hang_edit = st.selectbox("Chọn mã hàng để chỉnh sửa", df["Mã hàng"].unique())
+    df_edit = df[df["Mã hàng"] == ma_hang_edit].copy()
+
+    df_edit_new = st.data_editor(df_edit, use_container_width=True)
+
+    if st.button("💾 Lưu chỉnh sửa"):
+        df = df[df["Mã hàng"] != ma_hang_edit]  # Xóa dữ liệu cũ
+        df = pd.concat([df, df_edit_new], ignore_index=True)
+        df.to_csv(FILE_PATH, index=False)
+        st.success("✅ Đã cập nhật!")
+        st.dataframe(df[df["Mã hàng"] == ma_hang_edit], use_container_width=True)
+
+# ------------------------
+# 4. XÓA MÃ HÀNG
+# ------------------------
+st.subheader("🗑️ Xóa mã hàng")
+
+if not df.empty:
+    ma_hang_delete = st.selectbox("Chọn mã hàng để xóa", [""] + list(df["Mã hàng"].unique()))
+    if ma_hang_delete and st.button("❌ Xóa"):
+        df = df[df["Mã hàng"] != ma_hang_delete]
+        df.to_csv(FILE_PATH, index=False)
+        st.success(f"✅ Đã xóa mã hàng {ma_hang_delete}")
+        st.dataframe(df, use_container_width=True)
