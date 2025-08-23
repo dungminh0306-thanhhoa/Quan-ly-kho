@@ -1,167 +1,151 @@
 import streamlit as st
 import pandas as pd
 
-# =====================
-# Khởi tạo dữ liệu
-# =====================
+# ----------------- KHỞI TẠO -----------------
 if "products" not in st.session_state:
     st.session_state.products = {}
 
-if "new_colors" not in st.session_state:
-    st.session_state.new_colors = []
+# ----------------- HÀM THÊM MÃ HÀNG -----------------
+def add_product():
+    st.subheader("➕ Thêm mã hàng mới")
+    code = st.text_input("Nhập mã hàng")
+    if st.button("Thêm mã hàng"):
+        if code.strip() == "":
+            st.warning("Mã hàng không được để trống.")
+        elif code in st.session_state.products:
+            st.warning("Mã hàng đã tồn tại.")
+        else:
+            st.session_state.products[code] = {"colors": {}}
+            st.success(f"Đã thêm mã hàng: {code}")
 
-if "new_materials" not in st.session_state:
-    st.session_state.new_materials = []
+# ----------------- HÀM THÊM MÀU SẮC -----------------
+def add_color():
+    st.subheader("🎨 Thêm màu sắc cho mã hàng")
+    if not st.session_state.products:
+        st.info("Chưa có mã hàng nào. Vui lòng thêm mã hàng trước.")
+        return
+    
+    code = st.selectbox("Chọn mã hàng", list(st.session_state.products.keys()))
+    color = st.text_input("Nhập màu sắc")
+    if st.button("Thêm màu"):
+        if color.strip() == "":
+            st.warning("Tên màu không được để trống.")
+        else:
+            if color not in st.session_state.products[code]["colors"]:
+                st.session_state.products[code]["colors"][color] = []
+                st.success(f"Đã thêm màu {color} cho mã hàng {code}")
+            else:
+                st.warning("Màu này đã tồn tại trong mã hàng.")
 
+# ----------------- HÀM THÊM NGUYÊN PHỤ LIỆU -----------------
+def add_material():
+    st.subheader("🧵 Thêm nguyên phụ liệu cho màu sắc")
+    if not st.session_state.products:
+        st.info("Chưa có mã hàng nào. Vui lòng thêm mã hàng trước.")
+        return
+    
+    code = st.selectbox("Chọn mã hàng", list(st.session_state.products.keys()))
+    colors = list(st.session_state.products[code]["colors"].keys())
+    
+    if not colors:
+        st.info("Mã hàng này chưa có màu sắc. Vui lòng thêm màu trước.")
+        return
+    
+    color = st.selectbox("Chọn màu sắc", colors)
+    
+    with st.form(key="add_material_form"):
+        name = st.text_input("Tên nguyên phụ liệu")
+        qty = st.number_input("Lượng hàng", min_value=0, step=1)
+        stock = st.number_input("Đã có trong kho", min_value=0, step=1)
+        
+        submitted = st.form_submit_button("Thêm nguyên phụ liệu")
+        if submitted:
+            if name.strip() == "":
+                st.warning("Tên nguyên phụ liệu không được để trống.")
+            else:
+                status = "ĐỦ" if stock >= qty else "THIẾU"
+                st.session_state.products[code]["colors"][color].append(
+                    [name, qty, stock, status]
+                )
+                st.success(f"Đã thêm {name} cho màu {color} của mã {code}")
 
-# =====================
-# Hàm hiển thị bảng nhập liệu màu sắc
-# =====================
-def color_table():
-    st.subheader("Bảng màu sắc")
-    df = pd.DataFrame(st.session_state.new_colors, columns=["Màu sắc", "Số lượng"])
-    st.dataframe(df, use_container_width=True)
-
-    with st.form("add_color_form", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        with col1:
-            color = st.text_input("Nhập màu sắc")
-        with col2:
-            qty = st.number_input("Số lượng", min_value=0, step=1)
-
-        submitted = st.form_submit_button("➕ Thêm màu sắc")
-        if submitted and color:
-            st.session_state.new_colors.append([color, qty])
-
-
-# =====================
-# Hàm hiển thị bảng nhập liệu nguyên phụ liệu
-# =====================
-def material_table():
-    st.subheader("Bảng nguyên phụ liệu")
-    df = pd.DataFrame(
-        st.session_state.new_materials,
-        columns=["Màu sắc", "Tên nguyên phụ liệu", "Lượng hàng", "Đã có trong kho", "Trạng thái"],
-    )
-    st.dataframe(df, use_container_width=True)
-
-    with st.form("add_material_form", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        with col1:
-            color = st.selectbox("Chọn màu", [c[0] for c in st.session_state.new_colors] or ["(Chưa có màu)"])
-        with col2:
-            material = st.text_input("Tên nguyên phụ liệu")
-
-        col3, col4, col5 = st.columns(3)
-        with col3:
-            qty = st.number_input("Lượng hàng", min_value=0, step=1)
-        with col4:
-            stock = st.number_input("Đã có trong kho", min_value=0, step=1)
-        with col5:
-            status = st.selectbox("Trạng thái", ["ĐỦ", "THIẾU"])
-
-        submitted = st.form_submit_button("➕ Thêm nguyên phụ liệu")
-        if submitted and material:
-            st.session_state.new_materials.append([color, material, qty, stock, status])
-
-
-# =====================
-# Menu chức năng
-# =====================
-menu = st.sidebar.radio("Chức năng", ["Xem danh sách", "Thêm mã hàng", "Chỉnh sửa mã hàng", "Xóa mã hàng"])
-
-# =====================
-# Xem danh sách
-# =====================
-if menu == "Xem danh sách":
-    st.title("📋 Danh sách mã hàng")
-
+# ----------------- HÀM HIỂN THỊ -----------------
+def display_data():
     if not st.session_state.products:
         st.info("Chưa có mã hàng nào.")
-    else:
-        for code, data in st.session_state.products.items():
-            st.subheader(f"➡️ {code} - {data['name']}")
+        return
+    
+    for code, data in st.session_state.products.items():
+        st.subheader(f"📦 Mã hàng: {code}")
+        for color, materials in data.get("colors", {}).items():
+            st.markdown(f"🎨 **Màu sắc: {color}**")
+            if materials:
+                df = pd.DataFrame(materials, columns=["Tên nguyên phụ liệu", "Lượng hàng", "Đã có trong kho", "Trạng thái"])
+                st.dataframe(df, use_container_width=True)
+            else:
+                st.caption("⚠️ Chưa có nguyên phụ liệu nào cho màu này.")
 
-            st.markdown("**Màu sắc:**")
-            st.dataframe(pd.DataFrame(data["colors"], columns=["Màu sắc", "Số lượng"]), use_container_width=True)
+# ----------------- HÀM XÓA -----------------
+def delete_data():
+    st.subheader("🗑️ Xóa dữ liệu")
 
-            st.markdown("**Nguyên phụ liệu:**")
-            st.dataframe(
-                pd.DataFrame(
-                    data["materials"],
-                    columns=["Màu sắc", "Tên nguyên phụ liệu", "Lượng hàng", "Đã có trong kho", "Trạng thái"],
-                ),
-                use_container_width=True,
-            )
-
-# =====================
-# Thêm mã hàng
-# =====================
-elif menu == "Thêm mã hàng":
-    st.title("➕ Thêm mã hàng mới")
-
-    code = st.text_input("Mã hàng")
-    name = st.text_input("Tên sản phẩm")
-
-    # Hiển thị bảng nhập
-    color_table()
-    material_table()
-
-    if st.button("💾 Lưu mã hàng"):
-        if code:
-            st.session_state.products[code] = {
-                "name": name,
-                "colors": st.session_state.new_colors.copy(),
-                "materials": st.session_state.new_materials.copy(),
-            }
-            st.success(f"Đã lưu mã hàng {code}")
-            st.session_state.new_colors = []
-            st.session_state.new_materials = []
-        else:
-            st.error("Vui lòng nhập Mã hàng.")
-
-# =====================
-# Chỉnh sửa mã hàng
-# =====================
-elif menu == "Chỉnh sửa mã hàng":
-    st.title("✏️ Chỉnh sửa mã hàng")
     if not st.session_state.products:
-        st.info("Chưa có mã hàng để chỉnh sửa.")
-    else:
-        code_to_edit = st.selectbox("Chọn mã hàng để chỉnh sửa", list(st.session_state.products.keys()))
+        st.info("Chưa có dữ liệu để xóa.")
+        return
 
-        product = st.session_state.products[code_to_edit]
+    options = ["Xóa mã hàng", "Xóa màu sắc trong mã hàng", "Xóa nguyên phụ liệu trong màu"]
+    action = st.radio("Chọn loại xóa", options)
 
-        name = st.text_input("Tên sản phẩm", value=product["name"])
+    # XÓA MÃ HÀNG
+    if action == "Xóa mã hàng":
+        code = st.selectbox("Chọn mã hàng cần xóa", list(st.session_state.products.keys()))
+        if st.button("Xóa mã hàng"):
+            del st.session_state.products[code]
+            st.success(f"Đã xóa mã hàng {code}")
 
-        # Nếu lần đầu chỉnh sửa thì load dữ liệu vào new_colors/new_materials
-        if not st.session_state.new_colors and not st.session_state.new_materials:
-            st.session_state.new_colors = product["colors"].copy()
-            st.session_state.new_materials = product["materials"].copy()
+    # XÓA MÀU
+    elif action == "Xóa màu sắc trong mã hàng":
+        code = st.selectbox("Chọn mã hàng", list(st.session_state.products.keys()))
+        colors = list(st.session_state.products[code]["colors"].keys())
+        if not colors:
+            st.info("Mã hàng này chưa có màu sắc nào.")
+            return
+        color = st.selectbox("Chọn màu sắc cần xóa", colors)
+        if st.button("Xóa màu sắc"):
+            del st.session_state.products[code]["colors"][color]
+            st.success(f"Đã xóa màu {color} trong mã hàng {code}")
 
-        # Hiển thị bảng nhập
-        color_table()
-        material_table()
+    # XÓA NGUYÊN PHỤ LIỆU
+    elif action == "Xóa nguyên phụ liệu trong màu":
+        code = st.selectbox("Chọn mã hàng", list(st.session_state.products.keys()))
+        colors = list(st.session_state.products[code]["colors"].keys())
+        if not colors:
+            st.info("Mã hàng này chưa có màu sắc nào.")
+            return
+        color = st.selectbox("Chọn màu sắc", colors)
+        materials = st.session_state.products[code]["colors"][color]
+        if not materials:
+            st.info("Màu này chưa có nguyên phụ liệu nào.")
+            return
+        material_names = [m[0] for m in materials]
+        selected_material = st.selectbox("Chọn nguyên phụ liệu cần xóa", material_names)
+        if st.button("Xóa nguyên phụ liệu"):
+            st.session_state.products[code]["colors"][color] = [m for m in materials if m[0] != selected_material]
+            st.success(f"Đã xóa nguyên phụ liệu {selected_material} trong màu {color} của mã {code}")
 
-        if st.button("💾 Lưu chỉnh sửa"):
-            st.session_state.products[code_to_edit] = {
-                "name": name,
-                "colors": st.session_state.new_colors.copy(),
-                "materials": st.session_state.new_materials.copy(),
-            }
-            st.success(f"Đã cập nhật mã hàng {code_to_edit}")
-            st.session_state.new_colors = []
-            st.session_state.new_materials = []
+# ----------------- MAIN APP -----------------
+st.title("📋 Quản lý mã hàng, màu sắc & nguyên phụ liệu")
 
-# =====================
-# Xóa mã hàng
-# =====================
-elif menu == "Xóa mã hàng":
-    st.title("🗑️ Xóa mã hàng")
-    if not st.session_state.products:
-        st.info("Chưa có mã hàng để xóa.")
-    else:
-        code_to_delete = st.selectbox("Chọn mã hàng để xóa", list(st.session_state.products.keys()))
-        if st.button("Xóa"):
-            del st.session_state.products[code_to_delete]
-            st.success(f"Đã xóa mã hàng {code_to_delete}")
+menu = ["Thêm mã hàng", "Thêm màu sắc", "Thêm nguyên phụ liệu", "Xem dữ liệu", "Xóa dữ liệu"]
+choice = st.sidebar.radio("Chọn chức năng", menu)
+
+if choice == "Thêm mã hàng":
+    add_product()
+elif choice == "Thêm màu sắc":
+    add_color()
+elif choice == "Thêm nguyên phụ liệu":
+    add_material()
+elif choice == "Xem dữ liệu":
+    display_data()
+elif choice == "Xóa dữ liệu":
+    delete_data()
