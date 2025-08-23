@@ -47,9 +47,9 @@ def add_colors():
                     st.session_state.products[code]["colors"][color]["qty"] = qty
         st.success(f"Đã thêm/cập nhật {len(edited_df)} màu cho mã hàng {code}")
 
-# ----------------- HÀM THÊM NGUYÊN PHỤ LIỆU -----------------
-def add_material():
-    st.subheader("🧵 Thêm nguyên phụ liệu cho màu sắc")
+# ----------------- HÀM THÊM NHIỀU NGUYÊN PHỤ LIỆU -----------------
+def add_materials():
+    st.subheader("🧵 Thêm nhiều nguyên phụ liệu cho màu sắc")
     if not st.session_state.products:
         st.info("Chưa có mã hàng nào. Vui lòng thêm mã hàng trước.")
         return
@@ -63,21 +63,28 @@ def add_material():
     
     color = st.selectbox("Chọn màu sắc", colors)
     
-    with st.form(key="add_material_form"):
-        name = st.text_input("Tên nguyên phụ liệu")
-        qty = st.number_input("Lượng hàng", min_value=0, step=1)
-        stock = st.number_input("Đã có trong kho", min_value=0, step=1)
-        
-        submitted = st.form_submit_button("Thêm nguyên phụ liệu")
-        if submitted:
-            if name.strip() == "":
-                st.warning("Tên nguyên phụ liệu không được để trống.")
-            else:
+    st.markdown("Nhập danh sách nguyên phụ liệu (có thể nhập nhiều dòng).")
+    example_df = pd.DataFrame({
+        "Tên nguyên phụ liệu": ["Thun Nylon", "Dây kéo 17cm"],
+        "Lượng hàng": [100, 200],
+        "Đã có trong kho": [100, 150]
+    })
+
+    edited_df = st.data_editor(example_df, num_rows="dynamic", use_container_width=True)
+
+    if st.button("Lưu nguyên phụ liệu"):
+        materials = []
+        for _, row in edited_df.iterrows():
+            name = str(row["Tên nguyên phụ liệu"]).strip()
+            qty = int(row["Lượng hàng"]) if not pd.isna(row["Lượng hàng"]) else 0
+            stock = int(row["Đã có trong kho"]) if not pd.isna(row["Đã có trong kho"]) else 0
+            if name != "":
                 status = "ĐỦ" if stock >= qty else "THIẾU"
-                st.session_state.products[code]["colors"][color]["materials"].append(
-                    [name, qty, stock, status]
-                )
-                st.success(f"Đã thêm {name} cho màu {color} của mã {code}")
+                materials.append([name, qty, stock, status])
+        
+        if materials:
+            st.session_state.products[code]["colors"][color]["materials"].extend(materials)
+            st.success(f"Đã thêm {len(materials)} nguyên phụ liệu cho màu {color} của mã {code}")
 
 # ----------------- HÀM HIỂN THỊ -----------------
 def display_data():
@@ -99,14 +106,14 @@ def display_data():
 # ----------------- MAIN APP -----------------
 st.title("📋 Quản lý mã hàng, màu sắc & nguyên phụ liệu")
 
-menu = ["Thêm mã hàng", "Thêm nhiều màu sắc", "Thêm nguyên phụ liệu", "Xem dữ liệu"]
+menu = ["Thêm mã hàng", "Thêm nhiều màu sắc", "Thêm nhiều nguyên phụ liệu", "Xem dữ liệu"]
 choice = st.sidebar.radio("Chọn chức năng", menu)
 
 if choice == "Thêm mã hàng":
     add_product()
 elif choice == "Thêm nhiều màu sắc":
     add_colors()
-elif choice == "Thêm nguyên phụ liệu":
-    add_material()
+elif choice == "Thêm nhiều nguyên phụ liệu":
+    add_materials()
 elif choice == "Xem dữ liệu":
     display_data()
